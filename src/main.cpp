@@ -1,13 +1,18 @@
 #include <Arduino.h>
+#include <WiFi.h>
+#include <WiFiManager.h>
 #include <RCSwitch.h>
 #include <OneButton.h>
 #include <LedControl.h>
 
 #define TX_PIN 7  // 发射引脚
 #define RX_PIN 6  // 接收引脚
-#define BTN_PIN 9 // 按钮引脚
+#define BTN_PIN 10 // 按钮引脚
 #define LED1_PIN 12
 #define LED2_PIN 13
+
+// WiFiManager 实例
+WiFiManager wifiManager;
 
 RCSwitch txSwitch = RCSwitch();
 RCSwitch rxSwitch = RCSwitch();
@@ -44,6 +49,36 @@ void onLongPress()
 void setup()
 {
     Serial.begin(115200);
+    delay(1000); // 等待串口稳定
+
+    Serial.println("\n\n=== ESP32-C3 433MHz 收发器启动 ===");
+
+    // WiFi 配网初始化
+    // 设置 WiFiManager 超时时间（秒）
+    wifiManager.setConfigPortalTimeout(180); // 3分钟超时
+
+    // 自定义配网页面标题
+    wifiManager.setTitle("ESP32-C3 433MHz");
+
+    // 尝试自动连接，如果失败则启动配网门户
+    // AP名称: ESP32-C3-433TR
+    // AP密码: 12345678
+    Serial.println("正在连接 WiFi...");
+
+    if (!wifiManager.autoConnect("ESP32-C3-433TR", "12345678"))
+    {
+        Serial.println("WiFi 连接失败，重启设备...");
+        delay(3000);
+        ESP.restart();
+    }
+
+    // WiFi 连接成功
+    Serial.println("WiFi 连接成功！");
+    Serial.print("IP 地址: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("信号强度: ");
+    Serial.print(WiFi.RSSI());
+    Serial.println(" dBm");
 
     // 发射初始化
     txSwitch.enableTransmit(TX_PIN);
@@ -61,9 +96,10 @@ void setup()
     button.setPressMs(3000); // 长按3秒触发
     button.setDebounceMs(50);
 
-    Serial.println("433MHz 收发 Demo 已启动（支持信号学习）");
+    Serial.println("\n433MHz 收发 Demo 已启动（支持信号学习）");
     Serial.printf("TX Pin: GPIO%d, RX Pin: GPIO%d, BTN Pin: GPIO%d\n", TX_PIN, RX_PIN, BTN_PIN);
     Serial.println("单击 [GPIO9] 发射信号，长按3秒进入学习模式");
+    Serial.println("=====================================\n");
 }
 
 void loop()
