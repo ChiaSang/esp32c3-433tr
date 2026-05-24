@@ -8,6 +8,7 @@
 #define TX_PIN 7  // 发射引脚
 #define RX_PIN 6  // 接收引脚
 #define BTN_PIN 10 // 按钮引脚
+#define BOOT_PIN 9 // 按钮引脚
 #define LED1_PIN 12
 #define LED2_PIN 13
 
@@ -17,6 +18,7 @@ WiFiManager wifiManager;
 RCSwitch txSwitch = RCSwitch();
 RCSwitch rxSwitch = RCSwitch();
 OneButton button = OneButton(BTN_PIN, true, true); // 低电平有效，启用内部上拉
+OneButton bootButton = OneButton(BOOT_PIN, true, true);
 LedControl led1(LED1_PIN);
 LedControl led2(LED2_PIN);
 
@@ -27,6 +29,7 @@ unsigned long sendCode = 5393;            // 要发送的编码
 volatile bool learningMode = false;     // 是否处于学习模式
 volatile bool btnClickFlag = false;     // 按钮单击标志（中断中置位）
 volatile bool btnLongPressFlag = false; // 按钮长按标志
+volatile bool bootLongPressFlag = false; // BOOT 按钮长按标志（重置 WiFi）
 
 // 学习到的信号参数
 unsigned long learnedCode = 0;
@@ -44,6 +47,12 @@ void onSingleClick()
 void onLongPress()
 {
     btnLongPressFlag = true;
+}
+
+// BOOT 按钮长按回调（重置 WiFi）
+void onBootLongPress()
+{
+    bootLongPressFlag = true;
 }
 
 void setup()
@@ -96,6 +105,12 @@ void setup()
     button.setPressMs(3000); // 长按3秒触发
     button.setDebounceMs(50);
 
+    // BOOT 按钮初始化
+    pinMode(BOOT_PIN, INPUT_PULLUP);
+    bootButton.attachLongPressStart(onBootLongPress);
+    bootButton.setPressMs(5000); // 长按5秒触发
+    bootButton.setDebounceMs(50);
+
     Serial.println("\n433MHz 收发 Demo 已启动（支持信号学习）");
     Serial.printf("TX Pin: GPIO%d, RX Pin: GPIO%d, BTN Pin: GPIO%d\n", TX_PIN, RX_PIN, BTN_PIN);
     Serial.println("单击 [GPIO9] 发射信号，长按3秒进入学习模式");
@@ -104,9 +119,22 @@ void setup()
 
 void loop()
 {
-    button.tick(); // 处理按钮事件
+    button.tick();    // 处理按钮事件
+    bootButton.tick(); // 处理 BOOT 按钮事件
     led1.update();
     led2.update();
+
+    // 处理 BOOT 长按（重置 WiFi 并重启）
+    if (bootLongPressFlag)
+    {
+        bootLongPressFlag = false;
+        Serial.println(">>> 长按 BOOT 5秒，正在重置 WiFi 设置...");
+        led2.blink(100);
+        wifiManager.resetSettings();
+        Serial.println(">>> WiFi 设置已清除，正在重启...");
+        delay(1000);
+        ESP.restart();
+    }
 
     // 处理长按（任何时候都可进入/退出学习模式）
     if (btnLongPressFlag)
