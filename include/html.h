@@ -56,6 +56,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                             background: white; cursor: pointer; font-size: 12px; }
         .pagination button:disabled { opacity: 0.4; cursor: default; }
         .pagination span { font-size: 12px; color: #718096; }
+        .code-item .lp-bar { position:absolute; left:0; top:0; bottom:0; width:0; background:#f56565; border-radius:6px; opacity:0.18; pointer-events:none; transition:none; }
+        .code-item.lp-active .lp-bar { width:100%; transition:width 0.8s linear; }
+        .code-item .lp-hint { display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:#f56565; color:#fff; font-size:11px; padding:3px 8px; border-radius:4px; white-space:nowrap; pointer-events:none; z-index:2; }
+        .code-item.lp-active .lp-hint { display:block; }
+        .code-item { position:relative; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
     </style>
 </head>
 <body>
@@ -132,8 +137,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         <div class="code-actions" onclick="event.stopPropagation()">
                             <button class="btn btn-sm btn-success" onclick="sendCode(${i})" title="发射">▶</button>
                             <button class="btn btn-sm btn-warning" onclick="renameCode(${i},'${code.name}')" title="命名">✏</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteCode(${i})" title="删除">✕</button>
                         </div>
+                        <div class="lp-bar"></div>
+                        <div class="lp-hint">松开删除</div>
                     </div>`;
             }).join('');
 
@@ -144,8 +150,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             document.getElementById('nextBtn').disabled = currentPage >= totalPages;
         }
 
-        function prevPage() { if (currentPage > 1) { currentPage--; renderPage(); } }
-        function nextPage() { const total = Math.ceil(getEnabledCodes().length / pageSize); if (currentPage < total) { currentPage++; renderPage(); } }
+        function prevPage() { if (currentPage > 1) { currentPage--; renderPage(); bindLongPress(); } }
+        function nextPage() { const total = Math.ceil(getEnabledCodes().length / pageSize); if (currentPage < total) { currentPage++; renderPage(); bindLongPress(); } }
 
         async function loadCodes() {
             const res = await fetch('/api/codes');
@@ -153,6 +159,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             currentIndex = data.currentIndex;
             allCodes = data.codes.map((c, i) => ({...c, _idx: i}));
             renderPage();
+            bindLongPress();
         }
 
         async function sendCode(index) {
@@ -164,10 +171,37 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             await loadCodes();
         }
 
-        async function deleteCode(index) {
-            if (!confirm('确定删除此编码？')) return;
-            await fetch('/api/delete/' + index);
-            await loadCodes();
+        let lpTimer = null, lpIdx = -1, lpEl = null;
+        function lpStart(e) {
+            const item = e.currentTarget;
+            lpIdx = parseInt(item.dataset.idx);
+            lpEl = item;
+            item.classList.add('lp-active');
+            lpTimer = setTimeout(() => {}, 850);
+        }
+        function lpEnd(e) {
+            clearTimeout(lpTimer);
+            if (lpEl && lpEl.classList.contains('lp-active')) {
+                const bar = lpEl.querySelector('.lp-bar');
+                const done = bar && bar.getBoundingClientRect().width >= lpEl.offsetWidth * 0.9;
+                lpEl.classList.remove('lp-active');
+                if (done) {
+                    if (confirm('确定删除此编码？')) {
+                        fetch('/api/delete/' + lpIdx).then(() => loadCodes());
+                    }
+                }
+            }
+            lpEl = null; lpIdx = -1;
+        }
+        function lpCancel() { clearTimeout(lpTimer); if(lpEl) lpEl.classList.remove('lp-active'); lpEl=null; lpIdx=-1; }
+
+        function bindLongPress() {
+            document.querySelectorAll('.code-item').forEach(el => {
+                el.dataset.idx = el.querySelector('.code-actions .btn-success').getAttribute('onclick').match(/sendCode\((\d+)\)/)[1];
+                ['mousedown','touchstart'].forEach(ev => el.addEventListener(ev, lpStart, {passive:true}));
+                ['mouseup','touchend'].forEach(ev => el.addEventListener(ev, lpEnd));
+                ['mouseleave','touchcancel'].forEach(ev => el.addEventListener(ev, lpCancel));
+            });
         }
 
         async function renameCode(index, oldName) {
