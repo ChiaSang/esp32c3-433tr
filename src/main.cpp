@@ -224,6 +224,7 @@ void setupWebServer()
                         <div class="code-actions">
                             <button class="btn btn-success" onclick="sendCode(${i})">发射</button>
                             <button class="btn btn-primary" onclick="selectCode(${i})">选择</button>
+                            <button class="btn btn-warning" onclick="renameCode(${i}, '${code.name}')">重命名</button>
                             <button class="btn btn-danger" onclick="deleteCode(${i})">删除</button>
                         </div>
                     </div>
@@ -244,6 +245,13 @@ void setupWebServer()
         async function deleteCode(index) {
             if (!confirm('确定删除此编码？')) return;
             await fetch('/api/delete/' + index);
+            await loadCodes();
+        }
+
+        async function renameCode(index, oldName) {
+            const newName = prompt('请输入新名称：', oldName);
+            if (newName === null || newName.trim() === '') return;
+            await fetch('/api/rename/' + index + '?name=' + encodeURIComponent(newName.trim()));
             await loadCodes();
         }
 
@@ -341,6 +349,30 @@ void setupWebServer()
             saveCodeToFlash(index);
             Serial.printf("已删除编码 #%d\n", index);
             request->send(200, "text/plain", "OK");
+        } else {
+            request->send(400, "text/plain", "Invalid index");
+        } });
+
+    // API: 重命名编码
+    server.on("/api/rename/*", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+        String path = request->url().substring(String("/api/rename/").length());
+        int index = path.toInt();
+
+        if (index >= 0 && index < MAX_CODES && savedCodes[index].enabled) {
+            if (request->hasParam("name")) {
+                String newName = request->getParam("name")->value();
+                if (newName.length() > 0) {
+                    savedCodes[index].name = newName;
+                    saveCodeToFlash(index);
+                    Serial.printf("已重命名编码 #%d 为: %s\n", index, newName.c_str());
+                    request->send(200, "text/plain", "OK");
+                } else {
+                    request->send(400, "text/plain", "Name cannot be empty");
+                }
+            } else {
+                request->send(400, "text/plain", "Missing name parameter");
+            }
         } else {
             request->send(400, "text/plain", "Invalid index");
         } });
