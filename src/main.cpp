@@ -174,7 +174,6 @@ void setupWebServer()
     <div class="container">
         <div class="header">
             <h1>🎛️ ESP32-C3 433MHz 控制器</h1>
-            <p>IP: <span id="ip"></span> | 已连接</p>
         </div>
 
         <div id="learningStatus" class="learning-mode" style="display:none;">
@@ -202,6 +201,7 @@ void setupWebServer()
                 <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
             </div>
         </div>
+        <div class="card" id="netInfo" style="margin-top:10px; font-size:12px; color:#718096;">正在获取网络信息...</div>
     </div>
 
     <script>
@@ -285,8 +285,26 @@ void setupWebServer()
             await loadCodes();
         }
 
+        async function loadNetwork() {
+            try {
+                const res = await fetch('/api/network');
+                const n = await res.json();
+                const rssiLevel = n.rssi > -50 ? 'excellent' : n.rssi > -60 ? 'good' : n.rssi > -70 ? 'fair' : 'weak';
+                document.getElementById('netInfo').innerHTML =
+                    `📶 ${n.ssid} | IP: ${n.ip}` +
+                    `<br><span style="font-size:11px;opacity:0.85">` +
+                    `网关: ${n.gateway} | 信号: ${n.rssi}dBm | CH: ${n.channel}` +
+                    ` | MAC: ${n.mac} | 运行: ${n.uptime} | 内存: ${n.heap}B` +
+                    `</span>`;
+            } catch(e) {
+                document.getElementById('netInfo').textContent = '网络信息获取失败';
+            }
+        }
+
         loadCodes();
+        loadNetwork();
         setInterval(loadCodes, 5000);
+        setInterval(loadNetwork, 60000);
     </script>
 </body>
 </html>
@@ -409,6 +427,29 @@ void setupWebServer()
               {
         clearAllCodes();
         request->send(200, "text/plain", "OK"); });
+
+    // API: 获取网络信息
+    server.on("/api/network", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+        JsonDocument doc;
+        doc["ip"] = WiFi.localIP().toString();
+        doc["gateway"] = WiFi.gatewayIP().toString();
+        doc["subnet"] = WiFi.subnetMask().toString();
+        doc["dns"] = WiFi.dnsIP().toString();
+        doc["mac"] = WiFi.macAddress();
+        doc["rssi"] = WiFi.RSSI();
+        doc["ssid"] = WiFi.SSID();
+        doc["bssid"] = WiFi.BSSIDstr();
+        doc["channel"] = WiFi.channel();
+        char uptime[32];
+        unsigned long sec = millis() / 1000;
+        snprintf(uptime, sizeof(uptime), "%02lu:%02lu:%02lu", sec / 3600, (sec % 3600) / 60, sec % 60);
+        doc["uptime"] = String(uptime);
+        doc["heap"] = ESP.getFreeHeap();
+
+        String output;
+        serializeJson(doc, output);
+        request->send(200, "application/json", output); });
 
     server.begin();
     Serial.println("Web 服务器已启动");
