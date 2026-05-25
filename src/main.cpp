@@ -15,6 +15,10 @@
 #define LED1_PIN 12
 #define LED2_PIN 13
 
+// 发射重复次数（可通过 Web 修改）
+#define TX_REPEAT_COUNT_DEFAULT 2
+int txRepeatCount = TX_REPEAT_COUNT_DEFAULT;
+
 // WiFiManager 实例
 WiFiManager wifiManager;
 
@@ -68,6 +72,10 @@ void loadCodesFromFlash()
         savedCodes[i].pulseLength = preferences.getUInt((prefix + "pulse").c_str(), 320);
         savedCodes[i].enabled = preferences.getBool((prefix + "en").c_str(), false);
     }
+    preferences.end();
+    // 加载发射重复次数
+    preferences.begin("rf-codes", true);
+    txRepeatCount = preferences.getInt("txRepeat", TX_REPEAT_COUNT_DEFAULT);
     preferences.end();
     Serial.println("已从 Flash 加载编码数据");
 }
@@ -196,6 +204,12 @@ void setupWebServer()
 
         <div class="card">
             <h2>⚙️ 系统操作</h2>
+            <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span style="font-size:13px;">发射重复次数:</span>
+                <button class="btn btn-sm btn-primary" onclick="setRepeat()" id="repeatBtn">2次</button>
+                <input type="range" id="repeatSlider" min="1" max="10" value="2"
+                       style="width:120px; margin:0;" oninput="updateRepeatLabel()">
+            </div>
             <div class="system-actions">
                 <button class="btn btn-danger" onclick="clearAll()">清除所有编码</button>
                 <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
@@ -285,6 +299,15 @@ void setupWebServer()
             await loadCodes();
         }
 
+        function updateRepeatLabel() {
+            document.getElementById('repeatBtn').textContent = document.getElementById('repeatSlider').value + '次';
+        }
+
+        async function setRepeat() {
+            const count = document.getElementById('repeatSlider').value;
+            await fetch('/api/repeat/' + count);
+        }
+
         async function loadNetwork() {
             try {
                 const res = await fetch('/api/network');
@@ -303,6 +326,10 @@ void setupWebServer()
 
         loadCodes();
         loadNetwork();
+        // 同步重复次数
+        fetch('/api/status').then(r=>r.json()).then(d => {
+            if (d.txRepeat) { document.getElementById('repeatSlider').value = d.txRepeat; updateRepeatLabel(); }
+        });
         setInterval(loadCodes, 5000);
         setInterval(loadNetwork, 60000);
     </script>
@@ -342,8 +369,11 @@ void setupWebServer()
             RFCode &code = savedCodes[index];
             txSwitch.setProtocol(code.protocol);
             txSwitch.setPulseLength(code.pulseLength);
-            txSwitch.send(code.code, code.bitlength);
-            Serial.printf("Web 发射编码 #%d: %lu\n", index, code.code);
+            for (int r = 0; r < txRepeatCount; r++) {
+                if (r > 0) delay(50);
+                txSwitch.send(code.code, code.bitlength);
+            }
+            Serial.printf("Web 发射编码 #%d: %lu (x%d)\n", index, code.code, txRepeatCount);
             request->send(200, "text/plain", "OK");
         } else {
             request->send(400, "text/plain", "Invalid index");
@@ -417,10 +447,27 @@ void setupWebServer()
         JsonDocument doc;
         doc["learning"] = learningMode;
         doc["currentIndex"] = currentCodeIndex;
+        doc["txRepeat"] = txRepeatCount;
 
         String output;
         serializeJson(doc, output);
         request->send(200, "application/json", output); });
+
+    // API: 设置发射重复次数
+    server.on("/api/repeat/*", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+        String path = request->url().substring(String("/api/repeat/").length());
+        int count = path.toInt();
+        if (count >= 1 && count <= 10) {
+            txRepeatCount = count;
+            preferences.begin("rf-codes", false);
+            preferences.putInt("txRepeat", txRepeatCount);
+            preferences.end();
+            Serial.printf("发射重复次数已设为: %d\n", txRepeatCount);
+            request->send(200, "text/plain", "OK");
+        } else {
+            request->send(400, "text/plain", "Invalid count (1-10)");
+        } });
 
     // API: 清除所有编码
     server.on("/api/clear", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -566,7 +613,10 @@ void loop()
                           code.code, code.protocol, code.pulseLength, code.bitlength);
             txSwitch.setProtocol(code.protocol);
             txSwitch.setPulseLength(code.pulseLength);
-            txSwitch.send(code.code, code.bitlength);
+            for (int r = 0; r < txRepeatCount; r++) {
+                if (r > 0) delay(50);
+                txSwitch.send(code.code, code.bitlength);
+            }
         }
     }
 
