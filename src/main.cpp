@@ -8,8 +8,8 @@
 #include <OneButton.h>
 #include <LedControl.h>
 
-#define TX_PIN 7  // 发射引脚
-#define RX_PIN 6  // 接收引脚
+#define TX_PIN 7   // 发射引脚
+#define RX_PIN 6   // 接收引脚
 #define BTN_PIN 10 // 按钮引脚
 #define BOOT_PIN 9 // 按钮引脚
 #define LED1_PIN 12
@@ -31,17 +31,18 @@ OneButton bootButton = OneButton(BOOT_PIN, true, true);
 LedControl led1(LED1_PIN);
 LedControl led2(LED2_PIN);
 
-volatile bool learningMode = false;     // 是否处于学习模式
-volatile bool btnClickFlag = false;     // 按钮单击标志（中断中置位）
-volatile bool btnLongPressFlag = false; // 按钮长按标志
+volatile bool learningMode = false;      // 是否处于学习模式
+volatile bool btnClickFlag = false;      // 按钮单击标志（中断中置位）
+volatile bool btnLongPressFlag = false;  // 按钮长按标志
 volatile bool bootLongPressFlag = false; // BOOT 按钮长按标志（重置 WiFi）
 
-unsigned long learningModeStartTime = 0; // 学习模式开始时间
+unsigned long learningModeStartTime = 0;      // 学习模式开始时间
 const unsigned long LEARNING_TIMEOUT = 60000; // 学习模式超时时间（5秒）
 
 // 学习到的信号参数（最多存储10个）
 #define MAX_CODES 10
-struct RFCode { 
+struct RFCode
+{
     String name;
     unsigned long code;
     unsigned int bitlength;
@@ -54,9 +55,11 @@ RFCode savedCodes[MAX_CODES];
 int currentCodeIndex = 0; // 当前选中的编码索引
 
 // ========== 持久化存储函数 ==========
-void loadCodesFromFlash() {
+void loadCodesFromFlash()
+{
     preferences.begin("rf-codes", true); // 只读模式
-    for (int i = 0; i < MAX_CODES; i++) {
+    for (int i = 0; i < MAX_CODES; i++)
+    {
         String prefix = "code" + String(i) + "_";
         savedCodes[i].name = preferences.getString((prefix + "name").c_str(), "");
         savedCodes[i].code = preferences.getULong((prefix + "code").c_str(), 0);
@@ -69,8 +72,10 @@ void loadCodesFromFlash() {
     Serial.println("已从 Flash 加载编码数据");
 }
 
-void saveCodeToFlash(int index) {
-    if (index < 0 || index >= MAX_CODES) return;
+void saveCodeToFlash(int index)
+{
+    if (index < 0 || index >= MAX_CODES)
+        return;
     preferences.begin("rf-codes", false); // 读写模式
     String prefix = "code" + String(index) + "_";
     preferences.putString((prefix + "name").c_str(), savedCodes[index].name);
@@ -83,11 +88,13 @@ void saveCodeToFlash(int index) {
     Serial.printf("已保存编码 #%d 到 Flash\n", index);
 }
 
-void clearAllCodes() {
+void clearAllCodes()
+{
     preferences.begin("rf-codes", false);
     preferences.clear();
     preferences.end();
-    for (int i = 0; i < MAX_CODES; i++) {
+    for (int i = 0; i < MAX_CODES; i++)
+    {
         savedCodes[i] = {"", 0, 24, 1, 320, false};
     }
     Serial.println("已清除所有编码");
@@ -110,9 +117,11 @@ void onBootLongPress()
 }
 
 // ========== Web 服务器路由设置 ==========
-void setupWebServer() {
+void setupWebServer()
+{
     // 主页 - HTML 界面
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
         String html = R"rawliteral(
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -267,11 +276,11 @@ void setupWebServer() {
 </body>
 </html>
 )rawliteral";
-        request->send(200, "text/html", html);
-    });
+        request->send(200, "text/html", html); });
 
     // API: 获取所有编码
-    server.on("/api/codes", HTTP_GET, [](AsyncWebServerRequest *request){
+    server.on("/api/codes", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
         JsonDocument doc;
         JsonArray codes = doc["codes"].to<JsonArray>();
 
@@ -288,13 +297,13 @@ void setupWebServer() {
 
         String output;
         serializeJson(doc, output);
-        request->send(200, "application/json", output);
-    });
+        request->send(200, "application/json", output); });
 
     // API: 发射指定编码
-    server.on("^\\/api\\/send\\/(\\d+)$", HTTP_GET, [](AsyncWebServerRequest *request){
-        String indexStr = request->pathArg(0);
-        int index = indexStr.toInt();
+    server.on("/api/send/*", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+        String path = request->url().substring(String("/api/send/").length());
+        int index = path.toInt();
 
         if (index >= 0 && index < MAX_CODES && savedCodes[index].enabled) {
             RFCode &code = savedCodes[index];
@@ -305,13 +314,13 @@ void setupWebServer() {
             request->send(200, "text/plain", "OK");
         } else {
             request->send(400, "text/plain", "Invalid index");
-        }
-    });
+        } });
 
     // API: 选择当前编码
-    server.on("^\\/api\\/select\\/(\\d+)$", HTTP_GET, [](AsyncWebServerRequest *request){
-        String indexStr = request->pathArg(0);
-        int index = indexStr.toInt();
+    server.on("/api/select/*", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+        String path = request->url().substring(String("/api/select/").length());
+        int index = path.toInt();
 
         if (index >= 0 && index < MAX_CODES && savedCodes[index].enabled) {
             currentCodeIndex = index;
@@ -319,13 +328,13 @@ void setupWebServer() {
             request->send(200, "text/plain", "OK");
         } else {
             request->send(400, "text/plain", "Invalid index");
-        }
-    });
+        } });
 
     // API: 删除编码
-    server.on("^\\/api\\/delete\\/(\\d+)$", HTTP_GET, [](AsyncWebServerRequest *request){
-        String indexStr = request->pathArg(0);
-        int index = indexStr.toInt();
+    server.on("/api/delete/*", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+        String path = request->url().substring(String("/api/delete/").length());
+        int index = path.toInt();
 
         if (index >= 0 && index < MAX_CODES) {
             savedCodes[index] = {"", 0, 24, 1, 320, false};
@@ -334,34 +343,33 @@ void setupWebServer() {
             request->send(200, "text/plain", "OK");
         } else {
             request->send(400, "text/plain", "Invalid index");
-        }
-    });
+        } });
 
     // API: 开始学习模式
-    server.on("/api/learn", HTTP_GET, [](AsyncWebServerRequest *request){
+    server.on("/api/learn", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
         learningMode = true;
         learningModeStartTime = millis(); // 记录开始时间
         led1.blink(200);
         Serial.println("Web 触发学习模式");
-        request->send(200, "text/plain", "OK");
-    });
+        request->send(200, "text/plain", "OK"); });
 
     // API: 获取状态
-    server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest *request){
+    server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
         JsonDocument doc;
         doc["learning"] = learningMode;
         doc["currentIndex"] = currentCodeIndex;
 
         String output;
         serializeJson(doc, output);
-        request->send(200, "application/json", output);
-    });
+        request->send(200, "application/json", output); });
 
     // API: 清除所有编码
-    server.on("/api/clear", HTTP_GET, [](AsyncWebServerRequest *request){
+    server.on("/api/clear", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
         clearAllCodes();
-        request->send(200, "text/plain", "OK");
-    });
+        request->send(200, "text/plain", "OK"); });
 
     server.begin();
     Serial.println("Web 服务器已启动");
@@ -431,7 +439,7 @@ void setup()
 
 void loop()
 {
-    button.tick();    // 处理按钮事件
+    button.tick();     // 处理按钮事件
     bootButton.tick(); // 处理 BOOT 按钮事件
     led1.update();
     led2.update();
@@ -457,7 +465,7 @@ void loop()
         {
             learningModeStartTime = millis(); // 记录开始时间
             Serial.println(">>> 已进入学习模式，请发射信号...");
-            Serial.println(">>> 5秒后自动退出，或再次长按3秒手动退出");
+            Serial.println(">>> 60秒后自动退出，或再次长按3秒手动退出");
             led1.blink(200); // 快闪，200ms 周期
         }
         else
@@ -507,14 +515,17 @@ void loop()
             {
                 // 找到第一个空闲位置保存
                 int saveIndex = -1;
-                for (int i = 0; i < MAX_CODES; i++) {
-                    if (!savedCodes[i].enabled) {
+                for (int i = 0; i < MAX_CODES; i++)
+                {
+                    if (!savedCodes[i].enabled)
+                    {
                         saveIndex = i;
                         break;
                     }
                 }
 
-                if (saveIndex >= 0) {
+                if (saveIndex >= 0)
+                {
                     savedCodes[saveIndex].name = "Code_" + String(saveIndex + 1);
                     savedCodes[saveIndex].code = value;
                     savedCodes[saveIndex].bitlength = rxSwitch.getReceivedBitlength();
@@ -529,7 +540,9 @@ void loop()
                     Serial.printf("    编码: %lu, 位长: %d, 协议: %d, 脉冲: %d\n",
                                   savedCodes[saveIndex].code, savedCodes[saveIndex].bitlength,
                                   savedCodes[saveIndex].protocol, savedCodes[saveIndex].pulseLength);
-                } else {
+                }
+                else
+                {
                     Serial.println("!! 存储已满，请先删除一些编码");
                 }
 
