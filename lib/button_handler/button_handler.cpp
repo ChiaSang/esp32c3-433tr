@@ -22,6 +22,8 @@ void onLongPress()
 void onBootLongPress()
 {
     bootLongPressFlag = true;
+    led1.blink(150);
+    led2.blink(150);
 }
 
 void initButtons()

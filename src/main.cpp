@@ -81,7 +81,8 @@ void loop()
     {
         bootLongPressFlag = false;
         Serial.println(">>> 长按 BOOT 5秒，正在重置 WiFi 设置...");
-        led2.blink(100);
+        led1.on();
+        led2.on();
         wifiManager.resetSettings();
         Serial.println(">>> WiFi 设置已清除，正在重启...");
         delay(1000);
