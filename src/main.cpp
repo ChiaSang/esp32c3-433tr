@@ -142,8 +142,9 @@ void setupWebServer()
         body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 12px; -webkit-text-size-adjust: 100%; }
         .container { max-width: 800px; margin: 0 auto; }
         .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  color: white; padding: 12px; border-radius: 10px; margin-bottom: 8px; }
-        .header h1 { font-size: 16px; }
+                  color: white; padding: 12px; border-radius: 10px; margin-bottom: 8px;
+                  display: flex; align-items: center; justify-content: space-between; }
+        .header h1 { font-size: 16px; margin: 0; }
         .header p { font-size: 12px; margin-top: 2px; }
         .card { background: white; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -190,6 +191,7 @@ void setupWebServer()
     <div class="container">
         <div class="header">
             <h1>🎛️ ESP32-C3 433MHz 控制器</h1>
+            <button class="btn btn-primary" onclick="startLearning()">学习</button>
         </div>
 
         <div id="learningStatus" class="learning-mode" style="display:none;">
@@ -205,14 +207,6 @@ void setupWebServer()
                 <span id="pageInfo">1/1</span>
                 <button onclick="nextPage()" id="nextBtn">下一页</button>
             </div>
-        </div>
-
-        <div class="card">
-            <h2>➕ 学习新编码</h2>
-            <button class="btn btn-warning" onclick="startLearning()">开始学习模式</button>
-            <p style="margin-top:10px; color:#718096; font-size:12px;">
-                点击后，请在5秒内发射433MHz信号
-            </p>
         </div>
 
         <div class="card">
