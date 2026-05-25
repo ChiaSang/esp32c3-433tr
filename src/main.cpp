@@ -43,8 +43,8 @@ volatile bool bootLongPressFlag = false; // BOOT 按钮长按标志（重置 WiF
 unsigned long learningModeStartTime = 0;      // 学习模式开始时间
 const unsigned long LEARNING_TIMEOUT = 60000; // 学习模式超时时间（5秒）
 
-// 学习到的信号参数（最多存储10个）
-#define MAX_CODES 10
+// 学习到的信号参数（最多存储50个）
+#define MAX_CODES 50
 struct RFCode
 {
     String name;
@@ -142,15 +142,15 @@ void setupWebServer()
         body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 12px; -webkit-text-size-adjust: 100%; }
         .container { max-width: 800px; margin: 0 auto; }
         .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  color: white; padding: 16px; border-radius: 10px; margin-bottom: 12px; }
-        .header h1 { font-size: 18px; }
-        .header p { font-size: 13px; margin-top: 4px; }
-        .card { background: white; border-radius: 10px; padding: 14px; margin-bottom: 12px;
+                  color: white; padding: 12px; border-radius: 10px; margin-bottom: 8px; }
+        .header h1 { font-size: 16px; }
+        .header p { font-size: 12px; margin-top: 2px; }
+        .card { background: white; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .card h2 { font-size: 16px; margin-bottom: 10px; }
+        .card h2 { font-size: 14px; margin-bottom: 8px; }
         .btn { padding: 7px 12px; border: none; border-radius: 5px; cursor: pointer;
                font-size: 13px; transition: all 0.3s; white-space: nowrap; }
-        .btn-sm { padding: 5px 8px; font-size: 12px; }
+        .btn-sm { padding: 4px 6px; font-size: 12px; line-height: 1; }
         .btn-primary { background: #667eea; color: white; }
         .btn-primary:hover { background: #5568d3; }
         .btn-success { background: #48bb78; color: white; }
@@ -159,23 +159,31 @@ void setupWebServer()
         .btn-danger:hover { background: #e53e3e; }
         .btn-warning { background: #ed8936; color: white; }
         .btn-warning:hover { background: #dd6b20; }
-        .code-item { border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 8px;
-                     border-radius: 8px; }
-        .code-item.active { border-color: #667eea; background: #f7fafc; }
-        .code-info { margin-bottom: 8px; }
-        .code-name { font-weight: bold; font-size: 14px; margin-bottom: 3px; }
-        .code-details { font-size: 11px; color: #718096; line-height: 1.4; }
-        .code-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .code-item { border: 1px solid #e2e8f0; padding: 6px 8px; margin-bottom: 4px;
+                     border-radius: 6px; display: flex; align-items: center; gap: 6px; }
+        .code-item.active { border-color: #667eea; background: #edf2f7; }
+        .code-info { flex: 1; min-width: 0; cursor: pointer; }
+        .code-name { font-weight: bold; font-size: 13px; white-space: nowrap;
+                     overflow: hidden; text-overflow: ellipsis; }
+        .code-details { font-size: 10px; color: #718096; line-height: 1.3;
+                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .code-actions { display: flex; gap: 4px; flex-shrink: 0; }
         input[type="text"], input[type="number"] { width: 100%; padding: 10px;
                 border: 1px solid #e2e8f0; border-radius: 5px; margin-bottom: 10px; }
         .status { padding: 10px; border-radius: 5px; margin-bottom: 10px; }
         .status.success { background: #c6f6d5; color: #22543d; }
         .status.error { background: #fed7d7; color: #742a2a; }
-        .learning-mode { background: #fef5e7; border: 2px solid #f39c12; padding: 12px;
-                        border-radius: 8px; text-align: center; margin-bottom: 12px; }
-        .learning-mode h3 { font-size: 15px; }
-        .learning-mode p { font-size: 13px; }
+        .learning-mode { background: #fef5e7; border: 2px solid #f39c12; padding: 8px;
+                        border-radius: 8px; text-align: center; margin-bottom: 8px; }
+        .learning-mode h3 { font-size: 14px; }
+        .learning-mode p { font-size: 12px; }
         .system-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 6px;
+                     margin-top: 8px; padding-top: 6px; border-top: 1px solid #e2e8f0; }
+        .pagination button { padding: 4px 10px; border: 1px solid #cbd5e0; border-radius: 4px;
+                            background: white; cursor: pointer; font-size: 12px; }
+        .pagination button:disabled { opacity: 0.4; cursor: default; }
+        .pagination span { font-size: 12px; color: #718096; }
     </style>
 </head>
 <body>
@@ -192,6 +200,11 @@ void setupWebServer()
         <div class="card">
             <h2>📡 已保存的编码</h2>
             <div id="codeList"></div>
+            <div id="pagination" class="pagination" style="display:none;">
+                <button onclick="prevPage()" id="prevBtn">上一页</button>
+                <span id="pageInfo">1/1</span>
+                <button onclick="nextPage()" id="nextBtn">下一页</button>
+            </div>
         </div>
 
         <div class="card">
@@ -220,42 +233,62 @@ void setupWebServer()
 
     <script>
         let currentIndex = 0;
+        let currentPage = 1;
+        const pageSize = 5;
+        let allCodes = [];
+
+        function getEnabledCodes() { return allCodes.filter(c => c.enabled); }
+
+        function renderPage() {
+            const enabled = getEnabledCodes();
+            const totalPages = Math.max(1, Math.ceil(enabled.length / pageSize));
+            if (currentPage > totalPages) currentPage = totalPages;
+            const start = (currentPage - 1) * pageSize;
+            const page = enabled.slice(start, start + pageSize);
+
+            const list = document.getElementById('codeList');
+            if (enabled.length === 0) {
+                list.innerHTML = '<p style="color:#a0aec0;">暂无保存的编码</p>';
+                document.getElementById('pagination').style.display = 'none';
+                return;
+            }
+
+            list.innerHTML = page.map((code) => {
+                const i = code._idx;
+                return `
+                    <div class="code-item ${i === currentIndex ? 'active' : ''}" onclick="selectCode(${i})">
+                        <div class="code-info">
+                            <div class="code-name">${code.name} <small style="font-weight:normal;color:#718096;">${code.code}</small></div>
+                            <div class="code-details">${code.bitlength}位 P${code.protocol} ${code.pulseLength}μs</div>
+                        </div>
+                        <div class="code-actions" onclick="event.stopPropagation()">
+                            <button class="btn btn-sm btn-success" onclick="sendCode(${i})" title="发射">▶</button>
+                            <button class="btn btn-sm btn-warning" onclick="renameCode(${i},'${code.name}')" title="命名">✏</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteCode(${i})" title="删除">✕</button>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            const pg = document.getElementById('pagination');
+            pg.style.display = totalPages > 1 ? 'flex' : 'none';
+            document.getElementById('pageInfo').textContent = currentPage + '/' + totalPages;
+            document.getElementById('prevBtn').disabled = currentPage <= 1;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+        }
+
+        function prevPage() { if (currentPage > 1) { currentPage--; renderPage(); } }
+        function nextPage() { const total = Math.ceil(getEnabledCodes().length / pageSize); if (currentPage < total) { currentPage++; renderPage(); } }
 
         async function loadCodes() {
             const res = await fetch('/api/codes');
             const data = await res.json();
             currentIndex = data.currentIndex;
-
-            const list = document.getElementById('codeList');
-            if (data.codes.filter(c => c.enabled).length === 0) {
-                list.innerHTML = '<p style="color:#a0aec0;">暂无保存的编码</p>';
-                return;
-            }
-
-            list.innerHTML = data.codes.map((code, i) => {
-                if (!code.enabled) return '';
-                return `
-                    <div class="code-item ${i === currentIndex ? 'active' : ''}">
-                        <div class="code-info">
-                            <div class="code-name">${code.name}</div>
-                            <div class="code-details">
-                                编码:${code.code} | ${code.bitlength}位 | P${code.protocol} | ${code.pulseLength}μs
-                            </div>
-                        </div>
-                        <div class="code-actions">
-                            <button class="btn btn-sm btn-success" onclick="sendCode(${i})">发射</button>
-                            <button class="btn btn-sm btn-primary" onclick="selectCode(${i})">选择</button>
-                            <button class="btn btn-sm btn-warning" onclick="renameCode(${i}, '${code.name}')">命名</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteCode(${i})">删除</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
+            allCodes = data.codes.map((c, i) => ({...c, _idx: i}));
+            renderPage();
         }
 
         async function sendCode(index) {
             await fetch('/api/send/' + index);
-            alert('已发射编码 #' + index);
         }
 
         async function selectCode(index) {
@@ -613,8 +646,10 @@ void loop()
                           code.code, code.protocol, code.pulseLength, code.bitlength);
             txSwitch.setProtocol(code.protocol);
             txSwitch.setPulseLength(code.pulseLength);
-            for (int r = 0; r < txRepeatCount; r++) {
-                if (r > 0) delay(50);
+            for (int r = 0; r < txRepeatCount; r++)
+            {
+                if (r > 0)
+                    delay(50);
                 txSwitch.send(code.code, code.bitlength);
             }
         }
