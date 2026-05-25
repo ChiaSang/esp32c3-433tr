@@ -131,14 +131,18 @@ void setupWebServer()
     <title>ESP32-C3 433MHz 控制器</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 20px; }
+        body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 12px; -webkit-text-size-adjust: 100%; }
         .container { max-width: 800px; margin: 0 auto; }
         .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
-        .card { background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px;
+                  color: white; padding: 16px; border-radius: 10px; margin-bottom: 12px; }
+        .header h1 { font-size: 18px; }
+        .header p { font-size: 13px; margin-top: 4px; }
+        .card { background: white; border-radius: 10px; padding: 14px; margin-bottom: 12px;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;
-               font-size: 14px; transition: all 0.3s; }
+        .card h2 { font-size: 16px; margin-bottom: 10px; }
+        .btn { padding: 7px 12px; border: none; border-radius: 5px; cursor: pointer;
+               font-size: 13px; transition: all 0.3s; white-space: nowrap; }
+        .btn-sm { padding: 5px 8px; font-size: 12px; }
         .btn-primary { background: #667eea; color: white; }
         .btn-primary:hover { background: #5568d3; }
         .btn-success { background: #48bb78; color: white; }
@@ -147,21 +151,23 @@ void setupWebServer()
         .btn-danger:hover { background: #e53e3e; }
         .btn-warning { background: #ed8936; color: white; }
         .btn-warning:hover { background: #dd6b20; }
-        .code-item { border: 1px solid #e2e8f0; padding: 15px; margin-bottom: 10px;
-                     border-radius: 8px; display: flex; justify-content: space-between;
-                     align-items: center; }
+        .code-item { border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 8px;
+                     border-radius: 8px; }
         .code-item.active { border-color: #667eea; background: #f7fafc; }
-        .code-info { flex: 1; }
-        .code-name { font-weight: bold; font-size: 16px; margin-bottom: 5px; }
-        .code-details { font-size: 12px; color: #718096; }
-        .code-actions { display: flex; gap: 10px; }
+        .code-info { margin-bottom: 8px; }
+        .code-name { font-weight: bold; font-size: 14px; margin-bottom: 3px; }
+        .code-details { font-size: 11px; color: #718096; line-height: 1.4; }
+        .code-actions { display: flex; gap: 6px; flex-wrap: wrap; }
         input[type="text"], input[type="number"] { width: 100%; padding: 10px;
                 border: 1px solid #e2e8f0; border-radius: 5px; margin-bottom: 10px; }
         .status { padding: 10px; border-radius: 5px; margin-bottom: 10px; }
         .status.success { background: #c6f6d5; color: #22543d; }
         .status.error { background: #fed7d7; color: #742a2a; }
-        .learning-mode { background: #fef5e7; border: 2px solid #f39c12; padding: 15px;
-                        border-radius: 8px; text-align: center; margin-bottom: 20px; }
+        .learning-mode { background: #fef5e7; border: 2px solid #f39c12; padding: 12px;
+                        border-radius: 8px; text-align: center; margin-bottom: 12px; }
+        .learning-mode h3 { font-size: 15px; }
+        .learning-mode p { font-size: 13px; }
+        .system-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
@@ -191,8 +197,10 @@ void setupWebServer()
 
         <div class="card">
             <h2>⚙️ 系统操作</h2>
-            <button class="btn btn-danger" onclick="clearAll()">清除所有编码</button>
-            <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
+            <div class="system-actions">
+                <button class="btn btn-danger" onclick="clearAll()">清除所有编码</button>
+                <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
+            </div>
         </div>
     </div>
 
@@ -217,15 +225,14 @@ void setupWebServer()
                         <div class="code-info">
                             <div class="code-name">${code.name}</div>
                             <div class="code-details">
-                                编码: ${code.code} | 位长: ${code.bitlength} |
-                                协议: ${code.protocol} | 脉冲: ${code.pulseLength}
+                                编码:${code.code} | ${code.bitlength}位 | P${code.protocol} | ${code.pulseLength}μs
                             </div>
                         </div>
                         <div class="code-actions">
-                            <button class="btn btn-success" onclick="sendCode(${i})">发射</button>
-                            <button class="btn btn-primary" onclick="selectCode(${i})">选择</button>
-                            <button class="btn btn-warning" onclick="renameCode(${i}, '${code.name}')">重命名</button>
-                            <button class="btn btn-danger" onclick="deleteCode(${i})">删除</button>
+                            <button class="btn btn-sm btn-success" onclick="sendCode(${i})">发射</button>
+                            <button class="btn btn-sm btn-primary" onclick="selectCode(${i})">选择</button>
+                            <button class="btn btn-sm btn-warning" onclick="renameCode(${i}, '${code.name}')">命名</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteCode(${i})">删除</button>
                         </div>
                     </div>
                 `;
