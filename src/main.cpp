@@ -31,21 +31,17 @@ OneButton bootButton = OneButton(BOOT_PIN, true, true);
 LedControl led1(LED1_PIN);
 LedControl led2(LED2_PIN);
 
-unsigned long lastSendTime = 0;
-const unsigned long SEND_INTERVAL = 3000; // 每3秒发送一次
-unsigned long sendCode = 5393;            // 要发送的编码
-
 volatile bool learningMode = false;     // 是否处于学习模式
 volatile bool btnClickFlag = false;     // 按钮单击标志（中断中置位）
 volatile bool btnLongPressFlag = false; // 按钮长按标志
 volatile bool bootLongPressFlag = false; // BOOT 按钮长按标志（重置 WiFi）
 
 unsigned long learningModeStartTime = 0; // 学习模式开始时间
-const unsigned long LEARNING_TIMEOUT = 5000; // 学习模式超时时间（5秒）
+const unsigned long LEARNING_TIMEOUT = 60000; // 学习模式超时时间（5秒）
 
 // 学习到的信号参数（最多存储10个）
 #define MAX_CODES 10
-struct RFCode {
+struct RFCode { 
     String name;
     unsigned long code;
     unsigned int bitlength;
@@ -546,18 +542,6 @@ void loop()
     }
     else
     {
-        // 正常模式：定时发送
-        if (now - lastSendTime >= SEND_INTERVAL && savedCodes[currentCodeIndex].enabled)
-        {
-            lastSendTime = now;
-            RFCode &code = savedCodes[currentCodeIndex];
-            Serial.printf(">> 定时发送编码: %lu (协议:%d 脉冲:%d 位长:%d)\n",
-                          code.code, code.protocol, code.pulseLength, code.bitlength);
-            txSwitch.setProtocol(code.protocol);
-            txSwitch.setPulseLength(code.pulseLength);
-            txSwitch.send(code.code, code.bitlength);
-        }
-
         // 显示接收到的信号
         if (rxSwitch.available())
         {
