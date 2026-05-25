@@ -173,11 +173,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         let lpTimer = null, lpIdx = -1, lpEl = null;
         function lpStart(e) {
+            if (e.target.closest('.code-actions')) return;
             const item = e.currentTarget;
             lpIdx = parseInt(item.dataset.idx);
             lpEl = item;
-            item.classList.add('lp-active');
-            lpTimer = setTimeout(() => {}, 850);
+            lpTimer = setTimeout(() => { item.classList.add('lp-active'); }, 400);
         }
         function lpEnd(e) {
             clearTimeout(lpTimer);
@@ -193,7 +193,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }
             lpEl = null; lpIdx = -1;
         }
-        function lpCancel() { clearTimeout(lpTimer); if(lpEl) lpEl.classList.remove('lp-active'); lpEl=null; lpIdx=-1; }
+        function lpCancel() {
+            clearTimeout(lpTimer);
+            if (lpEl) lpEl.classList.remove('lp-active');
+            lpEl = null; lpIdx = -1;
+        }
 
         function bindLongPress() {
             document.querySelectorAll('.code-item').forEach(el => {
